@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,7 +43,8 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+uint8_t RxBuffer[5];
+uint8_t TxBuffer[150];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -50,7 +52,9 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+void UARTinterupt();
+void BlinkLED();
+void UARTinteruptConfig();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -88,7 +92,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  UARTinteruptConfig();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -98,6 +102,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	BlinkLED();
   }
   /* USER CODE END 3 */
 }
@@ -215,7 +220,34 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void UARTinteruptConfig(){
+	HAL_UART_Receive_IT(&huart2, RxBuffer, 1);
+	sprintf((char*)TxBuffer, "Main Menu:\n\n\r 0 - LD2 Control\n\r 1 - BTN1 Status\n\n\rEnter Option to Continue: ");
+	HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+}
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+	if (huart == &huart2){
+		RxBuffer[1]='\0';
+
+		sprintf((char*)TxBuffer, "%s\r\n", RxBuffer);
+		HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+
+		HAL_UART_Receive_IT(&huart2, RxBuffer, 1);
+	}
+}
+
+void UARTinterupt(){
+
+}
+
+void BlinkLED(){
+	static uint32_t timestamp = 0;
+	if (HAL_GetTick()>= timestamp){
+		timestamp = HAL_GetTick()+100;
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	}
+}
 /* USER CODE END 4 */
 
 /**
