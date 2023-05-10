@@ -46,9 +46,10 @@ UART_HandleTypeDef huart2;
 uint8_t RxBuffer[5];
 uint8_t TxBuffer[250];
 
+uint32_t LED2HzAmount = 5;
+
 uint8_t MenuStatus = 99;
-uint8_t LED2MenuStatus = 99;
-uint8_t BTN1MenuStatus = 99;
+uint8_t LED2Status = 1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -210,7 +211,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
@@ -221,6 +222,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -230,6 +235,15 @@ void UARTinteruptConfig(){
 	HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
 }
 
+void HAL_GPIO_EXTI_Callback (uint16_t GPIO_Pin){
+	if (GPIO_Pin == GPIO_PIN_13){
+		if (MenuStatus == 1){
+			sprintf((char*)TxBuffer, "BTN1 Triggered\r\nBTN1 Status Panel:\n\n\r push B1 - Report Status\n\r x - Back\n\n\rEnter Option to Continue: ");
+			HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+		}
+	}
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	if (huart == &huart2){
 		RxBuffer[1]='\0';
@@ -237,21 +251,75 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 //		sprintf((char*)TxBuffer, "%s\r\n", RxBuffer);
 //		HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
 
-		if (RxBuffer[0] == 48 && MenuStatus == 99){
-			sprintf((char*)TxBuffer, "%s\r\nLD2 Control Panel:\n\n\r a - Speed Up 1Hz\n\r s - Speed Down 1Hz\n\r d - On-Off\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
-			HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
-			MenuStatus = 0;
-		}
-		else if (RxBuffer[0] == 49 && MenuStatus == 99){
-			sprintf((char*)TxBuffer, "%s\r\nBTN1 Status Panel:\n\n\r push B1 - Report Status\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
-			HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
-			MenuStatus = 1;
+		// toggle menu
+		if (MenuStatus == 99){
+			if (RxBuffer[0] == 48){
+				sprintf((char*)TxBuffer, "%s\r\nLD2 Control Panel:\n\n\r a - Speed Up 1Hz\n\r s - Speed Down 1Hz\n\r d - On-Off\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+				MenuStatus = 0;
+			}
+			else if (RxBuffer[0] == 49){
+				sprintf((char*)TxBuffer, "%s\r\nBTN1 Status Panel:\n\n\r push B1 - Report Status\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+				MenuStatus = 1;
+			}
+			else {
+				sprintf((char*)TxBuffer, "%s\r\nWrong input - Return to Main Menu\n\r\nMain Menu:\n\n\r 0 - LD2 Control\n\r 1 - BTN1 Status\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			}
 		}
 
-		if (RxBuffer[0] == 120 && (MenuStatus == 0 || MenuStatus == 1)){
-			sprintf((char*)TxBuffer, "%s\r\nMain Menu:\n\n\r 0 - LD2 Control\n\r 1 - BTN1 Status\n\n\rEnter Option to Continue: " ,RxBuffer);
-			HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
-			MenuStatus = 99;
+		// LED2 sub-menu
+		if (MenuStatus == 0){
+			// a
+			if(RxBuffer[0] == 97){
+				LED2HzAmount += 1;
+				sprintf((char*)TxBuffer, "%s\r\nSpeed up to %lu Hz \r\nLD2 Control Panel:\n\n\r a - Speed Up 1Hz\n\r s - Speed Down 1Hz\n\r d - On-Off\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer ,LED2HzAmount);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+
+			}
+			// s
+			else if (RxBuffer[0] == 115){
+				if(LED2HzAmount>1){LED2HzAmount -= 1;}
+				sprintf((char*)TxBuffer, "%s\r\nSpeed down to %lu Hz \r\nLD2 Control Panel:\n\n\r a - Speed Up 1Hz\n\r s - Speed Down 1Hz\n\r d - On-Off\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer ,LED2HzAmount);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			}
+
+			// d
+			else if (RxBuffer[0] == 100){
+				sprintf((char*)TxBuffer, "%s\r\nOn-Off LD2 \r\nLD2 Control Panel:\n\n\r a - Speed Up 1Hz\n\r s - Speed Down 1Hz\n\r d - On-Off\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+				if(LED2Status == 0){LED2Status = 1;}
+				else if(LED2Status == 1){LED2Status = 0;}
+			}
+
+			// x
+			else if (RxBuffer[0] == 120){
+				sprintf((char*)TxBuffer, "%s\r\nMain Menu:\n\n\r 0 - LD2 Control\n\r 1 - BTN1 Status\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+				MenuStatus = 99;
+			}
+
+			// other case
+			else {
+				sprintf((char*)TxBuffer, "%s\r\nWrong input - Return to LD2 Control Panel\r\nLD2 Control Panel:\n\n\r a - Speed Up 1Hz\n\r s - Speed Down 1Hz\n\r d - On-Off\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			}
+		}
+
+		// BTN1 sub-menu
+		if (MenuStatus == 1){
+			// x
+			if (RxBuffer[0] == 120){
+				sprintf((char*)TxBuffer, "%s\r\nMain Menu:\n\n\r 0 - LD2 Control\n\r 1 - BTN1 Status\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+				MenuStatus = 99;
+			}
+			// other case
+			else {
+				sprintf((char*)TxBuffer, "%s\r\nWrong input - Return to BTN1 Status Panel\r\nBTN1 Status Panel:\n\n\r push B1 - Report Status\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
+				HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			}
 		}
 
 		HAL_UART_Receive_IT(&huart2, RxBuffer, 1);
@@ -264,8 +332,13 @@ void UARTinterupt(){
 void BlinkLED(){
 	static uint32_t timestamp = 0;
 	if (HAL_GetTick()>= timestamp){
-		timestamp = HAL_GetTick()+100;
-		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		if (LED2Status == 1){
+			timestamp = HAL_GetTick()+((1000/LED2HzAmount)/2);
+			HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		}
+		else if (LED2Status == 0){
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+		}
 	}
 }
 /* USER CODE END 4 */
