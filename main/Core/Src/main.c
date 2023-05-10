@@ -44,7 +44,11 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 uint8_t RxBuffer[5];
-uint8_t TxBuffer[150];
+uint8_t TxBuffer[250];
+
+uint8_t MenuStatus = 99;
+uint8_t LED2MenuStatus = 99;
+uint8_t BTN1MenuStatus = 99;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -230,15 +234,31 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	if (huart == &huart2){
 		RxBuffer[1]='\0';
 
-		sprintf((char*)TxBuffer, "%s\r\n", RxBuffer);
-		HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+//		sprintf((char*)TxBuffer, "%s\r\n", RxBuffer);
+//		HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+
+		if (RxBuffer[0] == 48 && MenuStatus == 99){
+			sprintf((char*)TxBuffer, "%s\r\nLD2 Control Panel:\n\n\r a - Speed Up 1Hz\n\r s - Speed Down 1Hz\n\r d - On-Off\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
+			HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			MenuStatus = 0;
+		}
+		else if (RxBuffer[0] == 49 && MenuStatus == 99){
+			sprintf((char*)TxBuffer, "%s\r\nBTN1 Status Panel:\n\n\r push B1 - Report Status\n\r x - Back\n\n\rEnter Option to Continue: " ,RxBuffer);
+			HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			MenuStatus = 1;
+		}
+
+		if (RxBuffer[0] == 120 && (MenuStatus == 0 || MenuStatus == 1)){
+			sprintf((char*)TxBuffer, "%s\r\nMain Menu:\n\n\r 0 - LD2 Control\n\r 1 - BTN1 Status\n\n\rEnter Option to Continue: " ,RxBuffer);
+			HAL_UART_Transmit_IT(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			MenuStatus = 99;
+		}
 
 		HAL_UART_Receive_IT(&huart2, RxBuffer, 1);
 	}
 }
 
 void UARTinterupt(){
-
 }
 
 void BlinkLED(){
